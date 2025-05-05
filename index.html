@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Name Similarity Finder</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: sans-serif; padding: 1rem; }
     input, button { margin: 0.5rem 0; padding: 0.5rem; width: 100%; }
@@ -62,12 +63,13 @@
         return;
       }
 
-      const floatCols = inputRows.columns.filter(c => c.startsWith("year_"));
+      const maleCols = inputRows.columns.filter(c => c.endsWith("_m"));
+      const femaleCols = inputRows.columns.filter(c => c.endsWith("_f"));
 
       // Compute average vector
-      const vectorSum = new Array(floatCols.length).fill(0);
+      const vectorSum = new Array(maleCols.length + femaleCols.length).fill(0);
       for (const row of inputRows.values) {
-        floatCols.forEach((col, i) => {
+        [...maleCols, ...femaleCols].forEach((col, i) => {
           const val = row[inputRows.columns.indexOf(col)] || 0;
           vectorSum[i] += val;
         });
@@ -75,12 +77,12 @@
       const avgVector = vectorSum.map(v => v / inputRows.values.length);
 
       // Build SQL for finding distances
-      const distanceExpr = floatCols.map((col, i) => `
-        CASE WHEN ${col} IS NULL THEN 0 ELSE pow(${col} - ${avgVector[i]}, 2) END
+      const distanceExpr = [...maleCols, ...femaleCols].map((col, i) => `
+        CASE WHEN ${col} IS NULL THEN 0 ELSE (${col} - ${avgVector[i]}) * (${col} - ${avgVector[i]}) END
       `).join(" + ");
 
       const nearestSQL = `
-        SELECT name, sqrt(${distanceExpr}) AS distance
+        SELECT name, language_origin, ${[...maleCols, ...femaleCols].join(", ")}, sqrt(${distanceExpr}) AS distance
         FROM names_normalized
         WHERE name NOT IN (${names.map(() => '?').join(',')})
         ORDER BY distance ASC
@@ -94,14 +96,133 @@
       }
 
       // Show results
-      const rows = results.values.map(row => `<tr><td>${row[0]}</td><td>${row[1].toFixed(4)}</td></tr>`).join("");
+      const rows = results.values.map(row => {
+        const name = row[0];
+        const languageOrigin = row[1];
+        const distance = row[row.length - 1].toFixed(4);
+
+        return `
+          <tr>
+            <td>${name}</td>
+            <td>${languageOrigin}</td>
+            <td>${distance}</td>
+          </tr>
+        `;
+      }).join("");
+
       document.getElementById("results").innerHTML = `
         <h2>Nearest Names</h2>
         <table>
-          <thead><tr><th>Name</th><th>Distance</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Language Origin</th>
+              <th>Distance</th>
+            </tr>
+          </thead>
           <tbody>${rows}</tbody>
         </table>
+        <canvas id="malePopularityChart" width="400" height="200"></canvas>
+        <canvas id="femalePopularityChart" width="400" height="200"></canvas>
       `;
+
+      // Prepare data for the male graph
+      const maleLabels = maleCols.map(col => col.replace("year_", "").replace("_m", "s"));
+      const maleDatasets = results.values.map(row => {
+        const name = row[0];
+        const data = maleCols.map((col, i) => row[2 + i] || 0);
+        return {
+          label: name,
+          data: data,
+          borderColor: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+          fill: false
+        };
+      });
+
+      // Prepare data for the female graph
+      const femaleLabels = femaleCols.map(col => col.replace("year_", "").replace("_f", "s"));
+      const femaleDatasets = results.values.map(row => {
+        const name = row[0];
+        const data = femaleCols.map((col, i) => row[2 + maleCols.length + i] || 0);
+        return {
+          label: name,
+          data: data,
+          borderColor: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+          fill: false
+        };
+      });
+
+      // Render the male graph
+      const maleCtx = document.getElementById("malePopularityChart").getContext("2d");
+      new Chart(maleCtx, {
+        type: "line",
+        data: {
+          labels: maleLabels,
+          datasets: maleDatasets
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: "top"
+            },
+            title: {
+              display: true,
+              text: "Male Popularity Across Decades"
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: "Decades"
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Popularity"
+              }
+            }
+          }
+        }
+      });
+
+      // Render the female graph
+      const femaleCtx = document.getElementById("femalePopularityChart").getContext("2d");
+      new Chart(femaleCtx, {
+        type: "line",
+        data: {
+          labels: femaleLabels,
+          datasets: femaleDatasets
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: "top"
+            },
+            title: {
+              display: true,
+              text: "Female Popularity Across Decades"
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: "Decades"
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Popularity"
+              }
+            }
+          }
+        }
+      });
     }
   </script>
 </body>
