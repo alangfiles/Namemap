@@ -108,7 +108,7 @@
       const nearestSQL = `
         SELECT name, language_origin, ${[...maleCols, ...femaleCols].join(", ")}, sqrt(${distanceExpr}) AS distance
         FROM names_normalized
-        WHERE name NOT IN (${names.map(() => '?').join(',')})
+        WHERE LOWER(name) NOT IN (${names.map(() => '?').join(',')})
         ORDER BY distance ASC
         LIMIT 10;
       `;
