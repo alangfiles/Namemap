@@ -13,6 +13,30 @@
     table { width: 100%; border-collapse: collapse; }
     td, th { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
     #spinner { display: none; margin: 1rem 0; text-align: center; font-weight: bold; }
+    .cards-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 1rem;
+      width: 200px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .card h3 {
+      margin: 0 0 0.5rem;
+    }
+    .card p {
+      margin: 0.25rem 0;
+    }
   </style>
 </head>
 <body>
@@ -95,33 +119,25 @@
         return;
       }
 
-      // Show results
-      const rows = results.values.map(row => {
+      // Show results as cards
+      const cards = results.values.map(row => {
         const name = row[0];
         const languageOrigin = row[1];
         const distance = row[row.length - 1].toFixed(4);
 
         return `
-          <tr>
-            <td>${name}</td>
-            <td>${languageOrigin}</td>
-            <td>${distance}</td>
-          </tr>
+          <div class="card" onclick="addToQuery('${name}')">
+            <h3>${name}</h3>
+            <p>Language Origin: ${languageOrigin}</p>
+            <p>Distance: ${distance}</p>
+          </div>
         `;
       }).join("");
 
       document.getElementById("results").innerHTML = `
         <h2>Nearest Names</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Language Origin</th>
-              <th>Distance</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <p>Click on a name to add it to the search.</p>
+        <div class="cards-container">${cards}</div>
         <canvas id="malePopularityChart" width="400" height="200"></canvas>
         <canvas id="femalePopularityChart" width="400" height="200"></canvas>
       `;
@@ -223,6 +239,17 @@
           }
         }
       });
+    }
+
+    // Function to add a name to the query and rerun the search
+    function addToQuery(name) {
+      const input = document.getElementById("inputNames");
+      const currentNames = input.value.split(",").map(n => n.trim()).filter(Boolean);
+      if (!currentNames.includes(name)) {
+        currentNames.push(name);
+      }
+      input.value = currentNames.join(", ");
+      findSimilarNames();
     }
   </script>
 </body>
