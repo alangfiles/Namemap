@@ -37,6 +37,22 @@
     .card p {
       margin: 0.25rem 0;
     }
+    .charts-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .chart {
+      flex: 1 1 40%; /* Each chart takes 50% of the width */
+      max-width: 40%; /* Ensure it doesn't exceed 50% */
+    }
+    @media (max-width: 600px) {
+      .chart {
+        flex: 1 1 100%; /* On smaller screens, each chart takes 100% width */
+        max-width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -110,7 +126,7 @@
         FROM names_normalized
         WHERE LOWER(name) NOT IN (${names.map(() => '?').join(',')})
         ORDER BY distance ASC
-        LIMIT 10;
+        LIMIT 5;
       `;
 
       const results = db.exec(nearestSQL, names)[0];
@@ -135,16 +151,53 @@
       }).join("");
 
       document.getElementById("results").innerHTML = `
-        <h2>Nearest Names</h2>
+        <h2>5 Nearest Names</h2>
         <p>Click on a name to add it to the search.</p>
         <div class="cards-container">${cards}</div>
-        <canvas id="malePopularityChart" width="400" height="200"></canvas>
-        <canvas id="femalePopularityChart" width="400" height="200"></canvas>
+        <div class="charts-container">
+          <div class="chart">
+            <canvas id="userMalePopularityChart"></canvas>
+          </div>
+          <div class="chart">
+            <canvas id="userFemalePopularityChart"></canvas>
+          </div>
+          <div class="chart">
+            <canvas id="resultMalePopularityChart"></canvas>
+          </div>
+          <div class="chart">
+            <canvas id="resultFemalePopularityChart"></canvas>
+          </div>
+        </div>
       `;
 
-      // Prepare data for the male graph
+      // Prepare data for the user-provided names
       const maleLabels = maleCols.map(col => col.replace("year_", "").replace("_m", "s"));
-      const maleDatasets = results.values.map(row => {
+      const femaleLabels = femaleCols.map(col => col.replace("year_", "").replace("_f", "s"));
+
+      const userMaleDatasets = inputRows.values.map(row => {
+        const name = row[inputRows.columns.indexOf("name")]; // Use the correct column index
+        const data = maleCols.map((col, i) => row[inputRows.columns.indexOf(col)] || 0);
+        return {
+          label: `${name}`,
+          data: data,
+          borderColor: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+          fill: false
+        };
+      });
+
+      const userFemaleDatasets = inputRows.values.map(row => {
+        const name = row[inputRows.columns.indexOf("name")]; // Use the correct column index
+        const data = femaleCols.map((col, i) => row[inputRows.columns.indexOf(col)] || 0);
+        return {
+          label: `${name}`,
+          data: data,
+          borderColor: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+          fill: false
+        };
+      });
+
+      // Prepare data for the SQL query results
+      const resultMaleDatasets = results.values.map(row => {
         const name = row[0];
         const data = maleCols.map((col, i) => row[2 + i] || 0);
         return {
@@ -155,9 +208,7 @@
         };
       });
 
-      // Prepare data for the female graph
-      const femaleLabels = femaleCols.map(col => col.replace("year_", "").replace("_f", "s"));
-      const femaleDatasets = results.values.map(row => {
+      const resultFemaleDatasets = results.values.map(row => {
         const name = row[0];
         const data = femaleCols.map((col, i) => row[2 + maleCols.length + i] || 0);
         return {
@@ -168,13 +219,13 @@
         };
       });
 
-      // Render the male graph
-      const maleCtx = document.getElementById("malePopularityChart").getContext("2d");
-      new Chart(maleCtx, {
+      // Render the user male graph
+      const userMaleCtx = document.getElementById("userMalePopularityChart").getContext("2d");
+      new Chart(userMaleCtx, {
         type: "line",
         data: {
           labels: maleLabels,
-          datasets: maleDatasets
+          datasets: userMaleDatasets
         },
         options: {
           responsive: true,
@@ -184,7 +235,7 @@
             },
             title: {
               display: true,
-              text: "Male Popularity Across Decades"
+              text: "User Male Popularity Across Decades"
             }
           },
           scales: {
@@ -204,13 +255,13 @@
         }
       });
 
-      // Render the female graph
-      const femaleCtx = document.getElementById("femalePopularityChart").getContext("2d");
-      new Chart(femaleCtx, {
+      // Render the user female graph
+      const userFemaleCtx = document.getElementById("userFemalePopularityChart").getContext("2d");
+      new Chart(userFemaleCtx, {
         type: "line",
         data: {
           labels: femaleLabels,
-          datasets: femaleDatasets
+          datasets: userFemaleDatasets
         },
         options: {
           responsive: true,
@@ -220,7 +271,79 @@
             },
             title: {
               display: true,
-              text: "Female Popularity Across Decades"
+              text: "User Female Popularity Across Decades"
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: "Decades"
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Popularity"
+              }
+            }
+          }
+        }
+      });
+
+      // Render the result male graph
+      const resultMaleCtx = document.getElementById("resultMalePopularityChart").getContext("2d");
+      new Chart(resultMaleCtx, {
+        type: "line",
+        data: {
+          labels: maleLabels,
+          datasets: resultMaleDatasets
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: "top"
+            },
+            title: {
+              display: true,
+              text: "Result Male Popularity Across Decades"
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: "Decades"
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Popularity"
+              }
+            }
+          }
+        }
+      });
+
+      // Render the result female graph
+      const resultFemaleCtx = document.getElementById("resultFemalePopularityChart").getContext("2d");
+      new Chart(resultFemaleCtx, {
+        type: "line",
+        data: {
+          labels: femaleLabels,
+          datasets: resultFemaleDatasets
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: "top"
+            },
+            title: {
+              display: true,
+              text: "Result Female Popularity Across Decades"
             }
           },
           scales: {
